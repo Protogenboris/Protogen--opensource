@@ -25,3 +25,6 @@ Also remember that the code is still in development and its my first big project
 For support, email: tankst445@gmail.com
 Or telegram: @Fulldayfullnight 
 
+## To Do..
+As i will have this version running nicely i will add support for max7219 panels even for RGB version. "im rn making ws2812B based panels"
+After i will try to add web settinf support for those people that dont want protopaw.
