@@ -6,6 +6,8 @@
 #include <QuickEspNow.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <SPI.h>
+#include <Adafruit_I2CDevice.h>
 #include "faces.h"
 #include "boop.h"
 #include "speech.h"
@@ -15,6 +17,7 @@
 
 //#define ENABLE_BOOP 
 //#define ENABLE_MIC 
+#define double_buffer true
 
 // Define display pins
 #define P_LAT 22
@@ -27,19 +30,36 @@
 
 
 unsigned long currentMillis = millis();
-
+extern bool faceUpdateRequested;
+extern void processFaceUpdate();
 // Initialize PxMatrix for LED panels
+uint8_t display_draw_time = 50;
 PxMATRIX display(64, 32, P_LAT, P_OE, P_A, P_B, P_C, P_D);
-
-//const uint16_t* currentFaceBitmap = nullptr; // Pointer to the currently displayed face bitmap
-//const char* currentFaceName = ]; // Name of the current face
 
 QuickEspNow espnow;
 
+void Task2code(void * pvParameters);
 
+hw_timer_t * timer = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+
+/// Predefining up task variables for dual core operation
+TaskHandle_t Task1; 
+TaskHandle_t Task2;
 
 
 void setup() {
+      //This sets up dual core processing
+     xTaskCreatePinnedToCore(
+    Task2code,    // Task function.
+    "Task2",      // name of task.
+    11000,        //Stack size of task
+    NULL,         // parameter of the task
+    24,           // priority of the task
+    &Task2,       // Task handle to keep track of created task
+    1             // pin task to core 1
+     );
+
     Serial.begin(115200);
 
     // Initialize custom modules
@@ -47,16 +67,25 @@ void setup() {
     initSpeech();
     initOLED();
     initESPNow();
-}
-void boopInit() {
     
+
+    display.begin(16);
+    display.display(display_draw_time);
+    display.setFastUpdate(false);
+    display.setBrightness(255);
+    display.setPanelsWidth(2);
+    display.setTextColor(display.color565(0,0,255));
+    display.setCursor(16, 0);
+    display.print("BOOTING UP...."); 
+    display.setTextColor(display.color565(255,255,255));
+    display.setCursor(16, 8);
+    display.print("PROTOGEN OS"); 
+    display.showBuffer();
+    delay(3000);
+    display.showBuffer();
+    display.clearDisplay();
+  
 }
-
-void speechInit() {
-    
-}
-
-
 
 void loop() {
     unsigned long currentMillis = millis();
@@ -70,10 +99,15 @@ void loop() {
     // Update LED display
     display.showBuffer();
     
-
+    
     // Update OLED info panel
     updateOLED(currentFaceBitmap, currentFaceName);
 
+    // Check and process face update
+    if (faceUpdateRequested) {
+        faceUpdateRequested = false;  // Reset the flag
+        processFaceUpdate();
+    }
 }
 
 
@@ -90,5 +124,13 @@ void displayBitmap(const uint8_t* currentFaceBitmap) {
         }
     }
     display.showBuffer();
+
+    
 }
 
+void Task2code( void * pvParameters ) {  
+  for (;;) {
+    delay(1);
+    display.display(display_draw_time);
+  }
+}

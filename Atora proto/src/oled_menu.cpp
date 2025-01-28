@@ -32,12 +32,12 @@ void updateOLED(const uint16_t* currentFaceIndex, const char* faceName) {
 
     // Draw the scaled-down bitmap if available
     if (currentFaceIndex != nullptr) {
-        for (int y = 0; y < BITMAP_HEIGHT; y += 2) {  //  Scale down by skipping rows
-            for (int x = 0; x < BITMAP_WIDTH; x += 2) { // Scale down by skipping columns
+        for (int y = 0; y < BITMAP_HEIGHT; y += 1) {  //  Scale down by skipping rows
+            for (int x = 0; x < BITMAP_WIDTH; x += 1) { // Scale down by skipping columns
                 uint16_t color = currentFaceIndex[y * BITMAP_WIDTH + x];
                 bool pixelOn = color != 0x0000; //  threshold
                 if (pixelOn) {
-                    u8g2.drawPixel(startX + x / 2, startY + y / 2);
+                    u8g2.drawPixel(startX + x , startY + y );
                 }
             }
         }

@@ -53,9 +53,3 @@ void initESPNow() {
     // Register the callback function for data reception
     esp_now_register_recv_cb(onDataReceived);
 }
-void loop() {
-    if (faceUpdateRequested) {
-        faceUpdateRequested = false;  // Reset the flag
-        processFaceUpdate();
-    }
-}

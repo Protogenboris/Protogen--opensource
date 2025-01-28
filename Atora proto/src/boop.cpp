@@ -3,6 +3,7 @@
 #include <VL53L0X.h>
 
 VL53L0X sensor;
+static uint8_t boopPin = 4;
 static uint16_t boopThreshold = 50;
 static bool boopActive = false;
 
@@ -35,9 +36,9 @@ void handleBoop(unsigned long currentMillis) {
         lastBoopCheck = currentMillis;
         uint16_t distance = sensor.readRangeContinuousMillimeters();
 
-        if (distance < 100) { // Example distance threshold
+        if (distance < 100) { // distance threshold
             Serial.println("Boop detected!");
-            // Trigger boop animation here
+            
         }
     }
 }
