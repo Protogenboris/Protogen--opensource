@@ -3,7 +3,7 @@
 
 project is ment for controlling 64x32 matrices with esp32 
 includes controll with espnow in separate file called protopaw
-it also uses 128x64 oled ,max4466 mic and vl53ldk sensor as boop sensor, code is still in development for wiring please read PxMATRIX library or git "https://github.com/2dom/PxMatrix" ,other pinouts are listed in code.
+it also uses 128x64 oled ,max4466 mic and vl53ldk sensor as boop sensor, code is still in development for wiring please read  ESP32-HUB75-MatrixPanel-I2S-DMA ,other pinouts are listed in code.
 
 
 ## Acknowledgements
