@@ -9,6 +9,7 @@ it also uses 128x64 oled ,max4466 mic and vl53ldk sensor as boop sensor, code is
 ## Acknowledgements
 
 Project is still in development!!
+I STILL NEED TO UPDATE PROTOPAW CONTROLL, also totally change paw hardware due to battery consumption,probably i will use some chip from seeduino with nrf chip
 
 
 ## Installation
