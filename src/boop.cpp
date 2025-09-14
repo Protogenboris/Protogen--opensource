@@ -15,6 +15,8 @@ void initBoop() {
     sensor.init();
     sensor.setTimeout(500);
     sensor.startContinuous();
+    boopInterval = 100; // Check every 100ms
+    lastBoopCheck = 0;
 }
 
 void updateBoop() {

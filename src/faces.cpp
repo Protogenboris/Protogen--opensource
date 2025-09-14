@@ -20,6 +20,5 @@ void setFace(uint16_t index) {
         currentFaceIndex = index;
     }
 }
-const uint16_t* currentFaceBitmap = faces[currentFaceIndex]; // Pointer to the currently displayed face bitmap
-const char* currentFaceName = faceNames[currentFaceIndex]; // Name of the current face
+// Global variables are now defined in main.cpp to avoid conflicts
 

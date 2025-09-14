@@ -2,16 +2,17 @@
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include <U8g2lib.h>
 #include <Adafruit_GFX.h>
-#include <WiFi.h>
-#include <QuickEspNow.h>
-#include <esp_now.h>
-#include <esp_wifi.h>
+// ESP-NOW and WiFi includes disabled for minimal build
+// #include <WiFi.h>
+// #include <QuickEspNow.h>
+// #include <esp_now.h>
+// #include <esp_wifi.h>
 #include <SPI.h>
 #include <Adafruit_I2CDevice.h>
 #include "faces.h"
-#include "boop.h"
-#include "speech.h"
-#include "espnowcom.h"
+// #include "boop.h"      // Disabled - no sensors in minimal build
+// #include "speech.h"    // Disabled - no sensors in minimal build
+// #include "espnowcom.h" // Disabled - no wireless control yet
 #include "scaling.h"
 #include "oled_menu.h"
 
@@ -35,10 +36,15 @@
 #define OE_PIN 15
 #define CLK_PIN 18
 
-// These are already defined in other files, so we use extern here
-extern bool faceUpdateRequested;
-extern const uint16_t* currentFaceBitmap;
-extern const char* currentFaceName;
+// Button pin for face switching
+#define BUTTON_PIN 21  // GPIO21 for face switching button
+
+// Define global variables here (main.cpp is the main file)
+volatile bool faceUpdateRequested = false;
+volatile char requestedCommand = 0;
+volatile bool displayUpdateNeeded = true;
+const uint16_t* currentFaceBitmap = nullptr;
+const char* currentFaceName = "Unknown";
 
 unsigned long currentMillis = millis();
 
@@ -51,13 +57,13 @@ HUB75_I2S_CFG mxconfig(
 
 );
 
-QuickEspNow espnow;
+// QuickEspNow espnow;  // Disabled for minimal build
 
 SemaphoreHandle_t displayMutex = xSemaphoreCreateMutex();
 
 void Task2code(void * pvParameters);
-// This is already defined in espnowcom.cpp
-extern void processFaceUpdate();
+// ESP-NOW functions temporarily disabled
+// extern void processFaceUpdate();
 
 hw_timer_t * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
@@ -169,9 +175,17 @@ void setup() {
     display->setBrightness8(255);
     display->fillScreen(display->color565(0, 0, 0));
     
+    // Initialize button for face switching
+    pinMode(BUTTON_PIN, INPUT_PULLUP); // Use internal pullup resistor
+    
     // Initialize the first face
     initFaces();
     setFace(0); // Start with the first face
+    currentFaceBitmap = getCurrentFace();
+    currentFaceName = getcurrentFaceName();
+    
+    Serial.printf("Protogen ready! Press button on GPIO%d to cycle faces.\n", BUTTON_PIN);
+    Serial.printf("Starting with: %s\n", currentFaceName);
 
     //This sets up dual core processing
     xTaskCreatePinnedToCore(
@@ -184,81 +198,107 @@ void setup() {
         0             // pin task to core 0
     );
 
-    // Initialize custom modules
-    initBoop();
-    initSpeech();
-    initOLED();
-    initESPNow();
+    // Initialize custom modules - minimal build
+    // initBoop();     // Disabled - no sensors needed for now
+    // initSpeech();   // Disabled - no sensors needed for now  
+    initOLED();       // Keep OLED for status display
+    // initESPNow();  // Disabled - ProtoPaw controller not needed yet
 }
 
 void loop() {
-    unsigned long currentMillis = millis();
-
-    #ifdef ENABLE_MIC
-    handleSpeech(currentMillis);
-    #endif
-    #ifdef ENABLE_BOOP
-    handleBoop(currentMillis);
-    #endif
-
-    // Update OLED info panel
-    updateOLED(currentFaceBitmap, currentFaceName);
-
-    // Check and process face update
-    if (faceUpdateRequested) {
-        faceUpdateRequested = false;  // Reset the flag
-        processFaceUpdate();
+    // Minimal build - display management and button control
+    
+    // Handle button press for face switching
+    static bool lastButtonState = HIGH;
+    static unsigned long lastDebounceTime = 0;
+    static int currentFaceIndex = 1; // Start with Calm_face (index 1)
+    const unsigned long debounceDelay = 50; // 50ms debounce
+    
+    bool buttonReading = digitalRead(BUTTON_PIN);
+    
+    // Check if button state changed (with debounce)
+    if (buttonReading != lastButtonState) {
+        lastDebounceTime = millis();
     }
     
-    // Cycle through faces every 5 seconds for testing
-    static unsigned long lastFaceChange = 0;
-    static int currentFaceIndex = 0;
-    if (millis() - lastFaceChange > 5000) {
-        lastFaceChange = millis();
-        currentFaceIndex = (currentFaceIndex + 1) % 7; // There are 7 faces in the array
-        setFace(currentFaceIndex);
-        ESP_LOGI("FACE", "Changed to face %d: %s", currentFaceIndex, currentFaceName);
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+        // Button state has been stable for debounce period
+        if (buttonReading == LOW && lastButtonState == HIGH) {
+            // Button was just pressed (HIGH to LOW transition)
+            currentFaceIndex = (currentFaceIndex + 1) % 7; // Cycle through 7 faces
+            setFace(currentFaceIndex);
+            currentFaceBitmap = getCurrentFace();
+            currentFaceName = getcurrentFaceName();
+            displayUpdateNeeded = true; // Trigger display refresh
+            
+            Serial.printf("Button pressed! Face changed to: %s (index %d)\n", currentFaceName, currentFaceIndex);
+        }
     }
+    
+    lastButtonState = buttonReading;
+    
+    // Update OLED info panel with current face status
+    updateOLED(currentFaceBitmap, currentFaceName);
+
+    // ESP-NOW face updates temporarily disabled for testing
+    // Check and process face update
+    // if (faceUpdateRequested) {
+    //     faceUpdateRequested = false;  // Reset the flag
+    //     processFaceUpdate();
+    //     displayUpdateNeeded = true;  // Trigger display refresh
+    // }
+    
+    // Face changes are now controlled by ESP-NOW commands only
+    // Removed auto-cycling to prevent conflicts with ProtoPaw controller
     
     delay(10); // Small delay to prevent watchdog issues
 }
 
+// Global flag to indicate when display needs updating
+static const uint16_t* lastDrawnFace = nullptr;
+
 void Task2code(void * pvParameters) {
-    ESP_LOGI("TASK2", "Task started");
+    ESP_LOGI("TASK2", "Display rendering task started");
     
     // Wait a bit for the display to be fully initialized
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     
     for (;;) {
-        vTaskDelay(25 / portTICK_PERIOD_MS); // Update at 20fps
-
-        // Check if display is valid
-        if (display == nullptr) {
-            ESP_LOGE("TASK2", "Error: display is null");
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-            continue; // Skip this iteration instead of deleting the task
-        }
-
-        // Synchronize access to display
-        if (xSemaphoreTake(displayMutex, portMAX_DELAY)) {
-            // Clear the display
-            display->fillScreen(display->color565(0, 0, 0));
+        // Only redraw if face changed or update requested
+        if (displayUpdateNeeded || currentFaceBitmap != lastDrawnFace) {
             
-            // Draw the current face bitmap if available
-            if (currentFaceBitmap != nullptr) {
-                // Draw the bitmap on both panels (original and mirrored)
-                drawBitmap(currentFaceBitmap, 0, 0, 64, 32);
-                
-                // Log that we're drawing the face
-                ESP_LOGI("TASK2", "Drawing face: %s", currentFaceName);
+            // Check if display is valid
+            if (display == nullptr) {
+                ESP_LOGE("TASK2", "Error: display is null");
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+                continue;
             }
-            
-            // Only flip if double buffering is enabled
-            #if defined(double_buffer) && double_buffer == true
-            display->flipDMABuffer();
-            #endif
-            
-            xSemaphoreGive(displayMutex);
+
+            // Synchronize access to display
+            if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(100))) {
+                // Clear the display
+                display->fillScreen(display->color565(0, 0, 0));
+                
+                // Draw the current face bitmap if available
+                if (currentFaceBitmap != nullptr) {
+                    drawBitmap(currentFaceBitmap, 0, 0, 64, 32);
+                    lastDrawnFace = currentFaceBitmap;
+                    ESP_LOGI("TASK2", "Face updated: %s", currentFaceName);
+                }
+                
+                // Only flip if double buffering is enabled
+                #if defined(double_buffer) && double_buffer == true
+                display->flipDMABuffer();
+                #endif
+                
+                displayUpdateNeeded = false;
+                xSemaphoreGive(displayMutex);
+            } else {
+                ESP_LOGW("TASK2", "Failed to acquire display mutex");
+            }
         }
+        
+        // Reduced frequency - only check every 50ms instead of 25ms
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }

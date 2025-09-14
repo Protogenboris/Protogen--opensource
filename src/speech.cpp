@@ -31,6 +31,8 @@ void handleSpeech(unsigned long currentMillis) {
 }
 void initSpeech() {
     pinMode(micPin, INPUT);
+    micInterval = 50; // Check every 50ms for responsiveness
+    lastMicCheck = 0;
 }
 
 void updateSpeechAnimation() {
